@@ -27,6 +27,8 @@
  * All these routines are in layer 4.
  */
 
+int seqNum = 0;
+
 /* 
  * A_output(message), where message is a structure of type msg, containing 
  * data to be sent to the B-side. This routine will be called whenever the 
@@ -35,6 +37,22 @@
  * in-order, and correctly, to the receiving side upper layer.
  */
 void A_output(struct msg message) {
+  //receive message and create a packet to send out
+  //add packet to a packet queue to keep track of who's been sent/being process
+  //after putting on queu, send to b input!
+  //end
+  int i;
+  struct pkt *packet = malloc(sizeof(struct pkt));
+  packet->acknum = 0;
+  packet->checksum = 0;
+  for (i = 0; i < MESSAGE_LENGTH; i++){
+    packet->payload[i] = message.data[i];
+  }
+  packet->seqnum = seqNum;
+
+  //should end up in b input, sending from a to b
+  tolayer3(0, *packet);
+  seqNum++;
 }
 
 /*
@@ -42,7 +60,7 @@ void A_output(struct msg message) {
  * implementation is bi-directional.
  */
 void B_output(struct msg message)  {
-
+  //don't use!
 }
 
 /* 
@@ -52,6 +70,14 @@ void B_output(struct msg message)  {
  * packet is the (possibly corrupted) packet sent from the B-side.
  */
 void A_input(struct pkt packet) {
+  //check if the message has already been sent; if so, then some error 
+  //existed there
+  //need to check if there's a message already being sent between a and b;
+  //if so, then can't send a message - must wait
+  //--create a "link being used" bool
+
+  //once you get the correct response (message was sent and an acknowledgment was received)
+  //take the message off queue + send to layer 5
 
 }
 
@@ -82,6 +108,18 @@ void A_init() {
  * packet is the (possibly corrupted) packet sent from the A-side.
  */
 void B_input(struct pkt packet) {
+  //check for corruption - checksum! and sequence value
+  //send back ack0 or ack1 for
+
+  int i;
+  struct msg *message = malloc(sizeof(struct msg));
+
+  for (i = 0; i < MESSAGE_LENGTH; i++){
+    message->data[i] = packet.payload[i];
+  }
+
+  tolayer5(1, *message);
+
 }
 
 /*

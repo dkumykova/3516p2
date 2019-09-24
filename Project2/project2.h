@@ -21,8 +21,8 @@
  VERSION 2.20 J. Breecher  - October  2013
 *****************************************************************************/
 
-// #define   LINUX
-#define    WINDOWS
+#define   LINUX
+//#define    WINDOWS
 
 #define  TRUE            1
 #define  FALSE           0
@@ -43,12 +43,23 @@ struct msg {
 // code) to layer 3 (the network simulator).  Note this is the pre-defined
 // packet structure, that is expected by layer 3 - so student code must 
 // match this format.        
-struct   pkt {
-    int  seqnum;
-    int  acknum;
-    int  checksum;
+struct pkt {
+    int seqnum;
+    int acknum;
+    int checksum;
     char payload[MESSAGE_LENGTH];
 };
+
+struct pktNode {
+  struct pkt* head;
+  struct pkt* node;
+};
+//constants + structs to add:
+//--sequence to keep track of sequence number
+//--linkedlist/queue of packets - struct
+//helper functions needed:
+//--calculate checksum
+//--compare checksum
 
 /*
  * PROTOTYPES - These are in student.c
