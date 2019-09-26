@@ -52,32 +52,32 @@ void A_output(struct msg message) {
   packet->acknum = 1; //can start with either 1 or 0
   unsigned int crc = crc32(0, message.data, MESSAGE_LENGTH);
   packet->checksum = crc;
-    for (i = 0; i < MESSAGE_LENGTH; i++){
-      packet->payload[i] = message.data[i];
-    }
+    // for (i = 0; i < MESSAGE_LENGTH; i++){
+    //   packet->payload[i] = message.data[i];
+    // }
   //packet->payload = malloc(sizeof(char) * MESSAGE_LENGTH);
-  //strcpy(packet->payload, message.data);
+  strncpy(packet->payload, message.data, MESSAGE_LENGTH);
   packet->seqnum = seqNum;
 
   printf("-----------original packet: %s, %d", packet->payload, packet->seqnum);
   //place packet into window since it's being sent, i.e. layer 3 window is occupied
   if(window->seqnum == -1){ //first packet in list
-     for (i = 0; i < MESSAGE_LENGTH; i++){
-       window->payload[i] = message.data[i];
-     }
+    //  for (i = 0; i < MESSAGE_LENGTH; i++){
+    //    window->payload[i] = message.data[i];
+    //  }
     //window->payload = (char*)malloc(sizeof(char) * MESSAGE_LENGTH);
     printf("this should only be printed once!!----------------\n\n");
-    //strcpy(window->payload, message.data);
+    strncpy(window->payload, message.data, MESSAGE_LENGTH);
     window->acknum = packet->acknum;
     window->checksum = packet->checksum;
     window->seqnum = packet->seqnum;
   } else { //add to list
     //place in waiting/being processed list
-     for (i = 0; i < MESSAGE_LENGTH; i++){
-       waiting[seqNum].payload[i] = packet->payload[i];
-     }
+    //  for (i = 0; i < MESSAGE_LENGTH; i++){
+    //    waiting[seqNum].payload[i] = packet->payload[i];
+    //  }
     //waiting[seqNum].payload = malloc(sizeof(char) * MESSAGE_LENGTH);
-    //strcpy(waiting[seqNum].payload, packet->payload);
+    strncpy(waiting[seqNum].payload, packet->payload, MESSAGE_LENGTH);
     waiting[seqNum].acknum = packet->acknum;
     waiting[seqNum].checksum = packet->checksum;
     waiting[seqNum].seqnum = packet->seqnum;
@@ -144,14 +144,22 @@ void A_input(struct pkt packet) {
 
     //get next packet in list
     if(waiting[packet.seqnum + 1].payload != NULL){
-       newPack = waiting[packet.seqnum + 1];
+
+       strncpy(newPack.payload, waiting[packet.seqnum + 1].payload, MESSAGE_LENGTH);
+       newPack.seqnum = waiting[packet.seqnum + 1].seqnum;
+       newPack.checksum = waiting[packet.seqnum + 1].checksum;
+      
        if(packet.acknum == 1){
         newPack.acknum = 0;
       } else {
         newPack.acknum = 1;
       }
+      int i;
+      printf("values for newPack in a input: ");
+      for (i=0; i < MESSAGE_LENGTH; i++)  
+            printf("%c", newPack.payload[i]);
+      printf("\n");
 
-      printf("values for newPack in a input: %s, %d\n", newPack.payload, newPack.seqnum);
       printf("a input packet is fine, sending to layer 3!!!\n");
       startTimer(0, 10);
       tolayer3(0, newPack);
@@ -238,11 +246,11 @@ void B_input(struct pkt packet) {
   struct msg *message = malloc(sizeof(struct msg));
   //message->data = malloc(sizeof(char) * MESSAGE_LENGTH);
 
-   for (i = 0; i < MESSAGE_LENGTH; i++){
-     message->data[i] = packet.payload[i];
-   }
+  //  for (i = 0; i < MESSAGE_LENGTH; i++){
+  //    message->data[i] = packet.payload[i];
+  //  }
 
-  //strcpy(message->data, packet.payload);
+  strncpy(message->data, packet.payload, MESSAGE_LENGTH);
 
   if(packet.checksum != crc){
     printf("b input packet is corrupt!!!\n");
@@ -254,7 +262,7 @@ void B_input(struct pkt packet) {
     //packet is theoretically fine, can send back an ACK of same value
     tolayer3(1, packet);
     //start b's timer; use to check if be receives new message of different ack or not
-    startTimer(1, 10);
+    startTimer(1, 10); //don't need this maybe 
     //can also send to layer5 here since the packet is ok
     tolayer5(1, *message);
   }
