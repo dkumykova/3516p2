@@ -35,7 +35,7 @@
 // to the remote layer 5 via the students transport level protocol entities.  
 
 #define MESSAGE_LENGTH  20
-#define QUEUE_LENGTH 5
+
 struct msg {
     char  data[MESSAGE_LENGTH];
 };
