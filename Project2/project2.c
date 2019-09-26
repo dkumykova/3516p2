@@ -879,6 +879,7 @@ void tolayer5( int AorB, struct msg message) {
     // of the other entity.
     GetMessageString( (AorB + 1) % 2, j, ExpectedString ); 
     if ( strncmp( ExpectedString, &(message.data[0]), MESSAGE_LENGTH ) != 0 ) {
+        printf("here's what message should be: %s\n", &(message.data[0]));
         printf( "\t\tTOLAYER5:  PANIC!!  Data Received in this packet are wrong\n");
         NumMsgs5To4WithErr++;   // number of messages incorrectly received
     }
