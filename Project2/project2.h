@@ -34,7 +34,8 @@
 // 4 (student's code).  It contains the data (characters) to be delivered 
 // to the remote layer 5 via the students transport level protocol entities.  
 
-#define  MESSAGE_LENGTH  20
+#define MESSAGE_LENGTH  20
+#define QUEUE_LENGTH 5
 struct msg {
     char  data[MESSAGE_LENGTH];
 };
@@ -50,10 +51,10 @@ struct pkt {
     char payload[MESSAGE_LENGTH];
 };
 
-struct pktNode {
-  struct pkt* head;
-  struct pkt* node;
-};
+//use this to create a linkedlist of the packets being sent to keep track
+// typedef struct{
+//   struct pkt **list;
+// } queue;
 //constants + structs to add:
 //--sequence to keep track of sequence number
 //--linkedlist/queue of packets - struct
