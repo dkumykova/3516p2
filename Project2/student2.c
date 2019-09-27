@@ -49,6 +49,7 @@ void A_output(struct msg message) {
   int i;
   struct pkt *packet = malloc(sizeof(struct pkt));
   packet->acknum = 1; //can start with either 1 or 0
+  //fix crc to include all fields
   unsigned int crc = crc32(0, message.data, MESSAGE_LENGTH);
   packet->checksum = crc;
   packet->seqnum = seqNum;
@@ -84,7 +85,9 @@ void A_output(struct msg message) {
   if(window->seqnum == -1){ //first packet in list
     printf("this should only be printed once!!----------------\n\n");
 
-
+    tolayer3(0, *packet);
+    //startimer?
+   startTimer(0, 10);
     window = &waiting[seqNum];
     printf("$$$$$$$$$$$$$$$$$$$$$window 1 data: %d, %d ", window->checksum, window->seqnum);
     int j;
@@ -95,9 +98,7 @@ void A_output(struct msg message) {
 
     //maybe instead of calling to layer3, call a input directly?
     //call with window instead of packet?
-    tolayer3(0, *packet);
-    //startimer?
-   // startTimer(0, 10);
+    
   } //else { //add to list
     //place in waiting/being processed list
 
