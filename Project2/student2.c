@@ -45,51 +45,78 @@ int waitingIndex = 0;
 void A_output(struct msg message) {
   //receive message and create a packet to send out
   //add packet to window to keep track of who's been sent/being process
-  //after putting on queu, send to b input!
-  //end
+  //after putting on queue, send to b input!
   int i;
   struct pkt *packet = malloc(sizeof(struct pkt));
   packet->acknum = 1; //can start with either 1 or 0
   unsigned int crc = crc32(0, message.data, MESSAGE_LENGTH);
   packet->checksum = crc;
-    
+  packet->seqnum = seqNum;
   strncpy(packet->payload, message.data, MESSAGE_LENGTH);
   
-  packet->seqnum = seqNum;
   
   printf("-----------original packet message: ");
   for(i = 0; i < MESSAGE_LENGTH; i++){
     printf("%c", packet->payload[i]);
-   } 
-   printf("seqnum: %d\n", packet->seqnum);
-   printf("-----------original message: ");
+  } 
+  printf("seqnum: %d\n", packet->seqnum);
+  printf("-----------original message as received from layer5: ");
   for(i = 0; i < MESSAGE_LENGTH; i++){
     printf("%c", message.data[i]);
-   } 
-   printf("\n");
+  } 
+  printf("\n");
+  printf("processing packets into list instead@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+
+  //make sure packet gets into list
+  strncpy(waiting[seqNum].payload, packet->payload, MESSAGE_LENGTH);
+  waiting[seqNum].acknum = packet->acknum;
+  waiting[seqNum].checksum = packet->checksum;
+  waiting[seqNum].seqnum = packet->seqnum;
+
+  printf("^^^^^^^^^^^^^^^^^^^^^^^^^waiting: all data: %d, %d", waiting[seqNum].checksum, waiting[seqNum].seqnum);
+    int j;
+    for(j = 0; j < MESSAGE_LENGTH; j++){
+      printf("%c", waiting[seqNum].payload[j]);
+    }
+    printf("\n");
+
   //place packet into window since it's being sent, i.e. layer 3 window is occupied
   if(window->seqnum == -1){ //first packet in list
-
     printf("this should only be printed once!!----------------\n\n");
-    window = &waiting[seqNum];
 
-     //should end up in b input, sending from a to b
+
+    window = &waiting[seqNum];
+    printf("$$$$$$$$$$$$$$$$$$$$$window 1 data: %d, %d ", window->checksum, window->seqnum);
+    int j;
+    for(j = 0; j < MESSAGE_LENGTH; j++){
+      printf("%c", window->payload[j]);
+    }
+    printf("\n");
+
+    //maybe instead of calling to layer3, call a input directly?
+    //call with window instead of packet?
     tolayer3(0, *packet);
     //startimer?
-    startTimer(0, 10);
-  } else { //add to list
+   // startTimer(0, 10);
+  } //else { //add to list
     //place in waiting/being processed list
 
-    strncpy(waiting[seqNum].payload, packet->payload, MESSAGE_LENGTH);
-    waiting[seqNum].acknum = packet->acknum;
-    waiting[seqNum].checksum = packet->checksum;
-    waiting[seqNum].seqnum = packet->seqnum;
-  }
+    
+    // strncpy(waiting[seqNum].payload, packet->payload, MESSAGE_LENGTH);
+    // waiting[seqNum].acknum = packet->acknum;
+    // waiting[seqNum].checksum = packet->checksum;
+    // waiting[seqNum].seqnum = packet->seqnum;
 
-  printf("-----------original window: %s, %d", window->payload, window->seqnum);
-  printf("-----------original waiting: %s, %d", waiting[seqNum].payload, waiting[seqNum].seqnum);
+    
+    
 
- 
+  //}
+
+  //printf("-----------original window: %s, %d", window->payload, window->seqnum);
+  //printf("-----------original waiting: %s, %d", waiting[seqNum].payload, waiting[seqNum].seqnum);
+
+  //should end up in b input, sending from a to b
+  
   seqNum++;
 }
 
@@ -108,6 +135,7 @@ void B_output(struct msg message)  {
  * packet is the (possibly corrupted) packet sent from the B-side.
  */
 void A_input(struct pkt packet) {
+  printf("A INPUT HAS BEEN CALLED %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
 
   //receives packet from b_input through layer 3;
   //check if ack of packet is same as the ack of the packet in window right now; if so, then the packet is ok to be sent to layer5
@@ -123,7 +151,7 @@ void A_input(struct pkt packet) {
   printf("a input check sum calc: %u\n", checkCheckSum);
   printf("packet check sum: %u\n", packet.checksum);
 
-  if((packet.checksum != checkCheckSum) || (waiting[packet.seqnum].acknum != packet.acknum)){
+  if((packet.checksum != checkCheckSum) || (window->acknum != packet.acknum)){
     printf("a input packet is corrupt!!!\n");
     //packet is corrupt and needs to be resent from a
     //B_timerinterrupt();
@@ -138,6 +166,7 @@ void A_input(struct pkt packet) {
 
     //get next packet in list
     if(window->payload != NULL){
+      printf("widnow next paylpoad ism't null!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
        strncpy(newPack.payload, window->payload, MESSAGE_LENGTH);
        newPack.seqnum = window->seqnum;
@@ -152,7 +181,7 @@ void A_input(struct pkt packet) {
       
 
       int i;
-      printf("values for newPack in a input: ");
+      printf("values for newPack in a input: %d, %d, ", newPack.seqnum, newPack.checksum);
       for (i=0; i < MESSAGE_LENGTH; i++)  
             printf("%c", newPack.payload[i]);
       printf("\n");
@@ -186,6 +215,7 @@ void A_timerinterrupt() {
 
   //resend damaged packet; need to get it from currend window, right? since can only send one at a time
   //do i need to fix whatever the error is or just resend?
+  printf("resending packet to B##################");
   startTimer(0, 10);
   //send back to b, hopefully it doesn't scramble again
   tolayer3(0, *window);
@@ -229,31 +259,21 @@ void B_input(struct pkt packet) {
      printf("B timer is still going\n");
      stopTimer(1);
    }
-  //  } else {
-  //    printf("a timer has timed out\n");
-  //    A_timerinterrupt();
-  //  }
 
   //check checksum
   unsigned int crc = crc32(0, packet.payload, MESSAGE_LENGTH);
   printf("b input check sum calc: %u\n", crc);
   printf("packet check sum: %u\n", packet.checksum);
 
-  int i;
   struct msg *message = malloc(sizeof(struct msg));
-  //message->data = malloc(sizeof(char) * MESSAGE_LENGTH);
-
-  //  for (i = 0; i < MESSAGE_LENGTH; i++){
-  //    message->data[i] = packet.payload[i];
-  //  }
-
   strncpy(message->data, packet.payload, MESSAGE_LENGTH);
 
   if(packet.checksum != crc){
     printf("b input packet is corrupt!!!\n");
     //checksum has been scrambled
-    //retransmit packet! just call the interrupt again?
-    //A_timerinterrupt();
+    //retransmit packet! 
+
+    ///don't do anything here? can't send nak, so wait for a interrupt to retransmit itself?
     startTimer(1, 10);
     tolayer3(1, packet);
   } else {
@@ -261,7 +281,7 @@ void B_input(struct pkt packet) {
     //packet is theoretically fine, can send back an ACK of same value
     tolayer3(1, packet);
     //start b's timer; use to check if be receives new message of different ack or not
-    startTimer(1, 10); //don't need this maybe 
+    startTimer(1, 10); 
     //can also send to layer5 here since the packet is ok
     tolayer5(1, *message);
   }
@@ -284,6 +304,7 @@ void  B_timerinterrupt() {
 
   //resend damaged packet; need to get it from currend window, right? since can only send one at a time
   //do i need to fix whatever the error is or just resend?
+  printf("resending packet to A&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
   startTimer(1, 10);
   //send back to a to be reprocessed
   tolayer3(1, *window);
