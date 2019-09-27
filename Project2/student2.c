@@ -33,6 +33,7 @@ int seqNum = 0;
 struct pkt *window;
 //should also have a list of the waiting messages so that when one gets transmitted, can send next one and pluck from list
 struct pkt waiting[100];
+int waitingIndex = 0;
 
 /*
  * A_output(message), where message is a structure of type msg, containing
@@ -46,37 +47,39 @@ void A_output(struct msg message) {
   //add packet to window to keep track of who's been sent/being process
   //after putting on queu, send to b input!
   //end
-
   int i;
   struct pkt *packet = malloc(sizeof(struct pkt));
   packet->acknum = 1; //can start with either 1 or 0
   unsigned int crc = crc32(0, message.data, MESSAGE_LENGTH);
   packet->checksum = crc;
-    // for (i = 0; i < MESSAGE_LENGTH; i++){
-    //   packet->payload[i] = message.data[i];
-    // }
-  //packet->payload = malloc(sizeof(char) * MESSAGE_LENGTH);
+    
   strncpy(packet->payload, message.data, MESSAGE_LENGTH);
+  
   packet->seqnum = seqNum;
-
-  printf("-----------original packet: %s, %d", packet->payload, packet->seqnum);
+  
+  printf("-----------original packet message: ");
+  for(i = 0; i < MESSAGE_LENGTH; i++){
+    printf("%c", packet->payload[i]);
+   } 
+   printf("seqnum: %d\n", packet->seqnum);
+   printf("-----------original message: ");
+  for(i = 0; i < MESSAGE_LENGTH; i++){
+    printf("%c", message.data[i]);
+   } 
+   printf("\n");
   //place packet into window since it's being sent, i.e. layer 3 window is occupied
   if(window->seqnum == -1){ //first packet in list
-    //  for (i = 0; i < MESSAGE_LENGTH; i++){
-    //    window->payload[i] = message.data[i];
-    //  }
-    //window->payload = (char*)malloc(sizeof(char) * MESSAGE_LENGTH);
+
     printf("this should only be printed once!!----------------\n\n");
-    strncpy(window->payload, message.data, MESSAGE_LENGTH);
-    window->acknum = packet->acknum;
-    window->checksum = packet->checksum;
-    window->seqnum = packet->seqnum;
+    window = &waiting[seqNum];
+
+     //should end up in b input, sending from a to b
+    tolayer3(0, *packet);
+    //startimer?
+    startTimer(0, 10);
   } else { //add to list
     //place in waiting/being processed list
-    //  for (i = 0; i < MESSAGE_LENGTH; i++){
-    //    waiting[seqNum].payload[i] = packet->payload[i];
-    //  }
-    //waiting[seqNum].payload = malloc(sizeof(char) * MESSAGE_LENGTH);
+
     strncpy(waiting[seqNum].payload, packet->payload, MESSAGE_LENGTH);
     waiting[seqNum].acknum = packet->acknum;
     waiting[seqNum].checksum = packet->checksum;
@@ -86,15 +89,7 @@ void A_output(struct msg message) {
   printf("-----------original window: %s, %d", window->payload, window->seqnum);
   printf("-----------original waiting: %s, %d", waiting[seqNum].payload, waiting[seqNum].seqnum);
 
-  int j;
-  // for(j = 0; j < 20; j++){
-  //   printf("This is the current waiting list: %s, %d\n", waiting[j].payload, waiting[j].seqnum);
-  // }
-
-  //should end up in b input, sending from a to b
-  tolayer3(0, *packet);
-  //startimer?
-  startTimer(0, 10);
+ 
   seqNum++;
 }
 
@@ -118,42 +113,44 @@ void A_input(struct pkt packet) {
   //check if ack of packet is same as the ack of the packet in window right now; if so, then the packet is ok to be sent to layer5
   //flip ack
 
-  //check b timer
+  //check a timer
    if(getTimerStatus(0)){ //still going, no timeout
      printf("A timer is still going\n");
      stopTimer(0);
    }
-  //  } else { //ran out of time
-  //    printf("B timer has timed out\n");
-  //    B_timerinterrupt();
-  //  }
 
   unsigned int checkCheckSum = crc32(0, packet.payload, MESSAGE_LENGTH);
   printf("a input check sum calc: %u\n", checkCheckSum);
   printf("packet check sum: %u\n", packet.checksum);
 
-  if(packet.checksum != checkCheckSum){
+  if((packet.checksum != checkCheckSum) || (waiting[packet.seqnum].acknum != packet.acknum)){
     printf("a input packet is corrupt!!!\n");
     //packet is corrupt and needs to be resent from a
     //B_timerinterrupt();
+    startTimer(0, 10);
+    tolayer3(0, packet);
   } else {
     //packet is fine and has been sent to layer 5; remove from window and send next packet with reversed ack bit
-    waiting[packet.seqnum]; //remove from list
+    //waiting[packet.seqnum]; //remove from list TODO
 
     struct pkt newPack;
+    window++;
 
     //get next packet in list
-    if(waiting[packet.seqnum + 1].payload != NULL){
+    if(window->payload != NULL){
 
-       strncpy(newPack.payload, waiting[packet.seqnum + 1].payload, MESSAGE_LENGTH);
-       newPack.seqnum = waiting[packet.seqnum + 1].seqnum;
-       newPack.checksum = waiting[packet.seqnum + 1].checksum;
+       strncpy(newPack.payload, window->payload, MESSAGE_LENGTH);
+       newPack.seqnum = window->seqnum;
+       newPack.checksum = window->checksum;
       
-       if(packet.acknum == 1){
+      if(packet.acknum == 1){
         newPack.acknum = 0;
       } else {
         newPack.acknum = 1;
       }
+
+      
+
       int i;
       printf("values for newPack in a input: ");
       for (i=0; i < MESSAGE_LENGTH; i++)  
@@ -257,6 +254,8 @@ void B_input(struct pkt packet) {
     //checksum has been scrambled
     //retransmit packet! just call the interrupt again?
     //A_timerinterrupt();
+    startTimer(1, 10);
+    tolayer3(1, packet);
   } else {
     printf("b input packet is fine, sending to both layers!!!\n");
     //packet is theoretically fine, can send back an ACK of same value
@@ -267,9 +266,6 @@ void B_input(struct pkt packet) {
     tolayer5(1, *message);
   }
 
-
-
-  //tolayer5(1, *message);
 
 }
 
