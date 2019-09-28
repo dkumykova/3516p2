@@ -36,6 +36,23 @@
 int currentACK; //0 or 1
 int currentSEQ; //0 or 1
 
+int aState; //0 free, 1 if waiting for message (occupied)
+int bState;
+
+struct pkt* inTransit; //pointer to the packet currently be transmitted between a and b
+
+//messages waiting in line to be sent
+typedef struct{
+  struct msg waiting[10]; //those waiting in line
+  struct msg *front;
+  struct msg *end;
+  int index;
+  int total;
+} line;
+
+line waitingLine;
+int createCheckSum(char message[MESSAGE_LENGTH], int ack, int seq);
+void sendAcknowledgement(int ack, int entity);
 
 /*
  * A_output(message), where message is a structure of type msg, containing
@@ -46,19 +63,38 @@ int currentSEQ; //0 or 1
  */
 void A_output(struct msg message) {
   printf("Message in a_output: %s\n", message.data);
-  //create packet
-  struct pkt* packet = (struct pkt*)malloc(sizeof(struct pkt));
-  packet->acknum = currentACK;
-  packet->seqnum = currentSEQ;
-  packet->checksum = createCheckSum(message.data, packet->acknum, packet->seqnum);
-  strncpy(packet->payload, message.data, MESSAGE_LENGTH);
 
-  printf("packet sent to B input: %s, %d, %d\n", packet->payload, packet->seqnum, packet->acknum);
+  if(aState == 0){ //free and waiting for new data
+    
+    //create packet
+    struct pkt* packet = (struct pkt*)malloc(sizeof(struct pkt));
+    packet->acknum = currentACK;
+    packet->seqnum = currentSEQ;
+    packet->checksum = createCheckSum(message.data, packet->acknum, packet->seqnum);
+    strncpy(packet->payload, message.data, MESSAGE_LENGTH);
 
+    printf("packet sent to B input from a output: %s, %d, %d\n", packet->payload, packet->seqnum, packet->acknum);
+    tolayer3(AEntity, *packet);
+    aState = 1;
+    //start timer
+
+  } else { //something is in transit, a is either waiting for an ack or is moving a packet
+    printf("A is in use, message placed in line to wait***********************\n");
+    //store message in line for the time being
+    if(waitingLine.index == 9){
+      //reaching end of line, need to loop around and start placing at beginning of buffer again
+      waitingLine.index = 0;
+    }
+    strncpy(waitingLine.waiting[waitingLine.index].data, message.data, MESSAGE_LENGTH);
+    //point end at the last placed message in line
+    waitingLine.end = &waitingLine.waiting[waitingLine.index];
+    waitingLine.index++;
+    waitingLine.total++;
+    printf("Number of messages currently in line: %d\n", waitingLine.total);
+    return;
+
+  }
   
-
-  tolayer3(AEntity, *packet);
-  //start timer
 
   //account for messages waiting
 }
@@ -78,7 +114,27 @@ void B_output(struct msg message)  {
  * packet is the (possibly corrupted) packet sent from the B-side.
  */
 void A_input(struct pkt packet) {
+  //check the ack sent from b and compare to current ack; if not the same, it's a nak
+  if(packet.acknum != currentACK){
+    //NAK, resend packet to B
+    return;
+
+  }
+
+  //create next packet to be sent
+  struct pkt *next = (struct pkt*)malloc(sizeof(struct pkt));
+  //flip em
+  next->acknum = 1 - currentACK;
+  next->seqnum = 1 - currentSEQ;
+  strncpy(next->payload, waitingLine.front->data, MESSAGE_LENGTH);
+  next->checksum = createCheckSum(next->payload, next->acknum, next->seqnum);
   
+  printf("packet sent to B input from a input: %s, %d, %d\n", next->payload, next->seqnum, next->acknum);
+  waitingLine.front++;
+  
+  //everything is fine and it was a positive ack
+  //grab next message on queue and increment first pointer in waiting line
+  tolayer3(AEntity, *next);
 
 }
 
@@ -100,6 +156,15 @@ void A_init() {
   
   currentSEQ = 0;
   currentACK = 0;
+
+  //start program off with both sides open and waiting for data
+  aState = 0;
+  bState = 0;
+
+  //used to keep track of each messages' index within the waitingLine
+  waitingLine.index = 0;
+  waitingLine.front = &waitingLine.waiting[0];
+  
 }
 
 
@@ -118,12 +183,32 @@ void B_input(struct pkt packet) {
   //if any bad, ask for retransmit
   //start timer
 
+  //checksum
+  if(packet.checksum != createCheckSum(packet.payload, packet.acknum, packet.seqnum)){
+
+    //send nak
+    return;
+  }
+
+  //out of order
+  if(packet.seqnum != currentSEQ){
+
+  } 
+
+  //wrong ack, not sure if need to check here
+  if(packet.acknum != currentACK){
+
+  }
+
   //if all good, send to layer5
   struct msg *message = (struct msg*)malloc(sizeof(struct msg));
   strncpy(message->data, packet.payload, MESSAGE_LENGTH);
 
   printf("Message sent to layer 5 from b: %s\n", message->data);
+  //let a know that alls good and can grab next message from list to transmite
+  sendAcknowledgement(packet.acknum, BEntity);
   tolayer5(BEntity, *message);
+  
   
 
 
@@ -149,9 +234,9 @@ void B_init() {
 
 //generate the checksum for each packet in the system using
 //relevant packet information
-int createCheckSum(struct msg message, int ack, int seq){
+int createCheckSum(char message[MESSAGE_LENGTH], int ack, int seq){
   char buffer[MESSAGE_LENGTH + 2];
-  strncpy(buffer, message.data, MESSAGE_LENGTH);
+  strncpy(buffer, message, MESSAGE_LENGTH);
   buffer[MESSAGE_LENGTH] = (char)ack;
   buffer[MESSAGE_LENGTH + 1] = (char)seq;
   
@@ -160,3 +245,11 @@ int createCheckSum(struct msg message, int ack, int seq){
   return check;
 }
 
+//use to send naks and acks between A and B sides
+void sendAcknowledgement(int ack, int fromEntity){
+  printf("Acknowldgement sent!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  struct pkt *pack = (struct pkt*)malloc(sizeof(struct pkt));
+  pack->acknum = ack;
+  pack->checksum = createCheckSum(pack->payload, pack->acknum, pack->seqnum);
+  tolayer3(fromEntity, *pack);
+}
